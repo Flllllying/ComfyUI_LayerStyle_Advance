@@ -448,6 +448,8 @@ class LS_JoyCaptionExtraOptions:
         return ([ret_list, character_name],)
 
 
+global_model = None
+
 class LS_JoyCaption2:
 
     CATEGORY = '😺dzNodes/LayerUtility'
@@ -485,6 +487,7 @@ class LS_JoyCaption2:
                 "top_p": ("FLOAT", {"default": 0.9, "min": 0, "max":1, "step": 0.01}),
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0, "max":1, "step": 0.01}),
                 "cache_model": ("BOOLEAN", {"default": False}),
+                "use_global_model": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "extra_options": ("JoyCaption2ExtraOption",),
@@ -492,12 +495,18 @@ class LS_JoyCaption2:
         }
 
     def joycaption2(self, image, llm_model, device, dtype, vlm_lora, caption_type, caption_length,
-                    user_prompt, max_new_tokens, top_p, temperature, cache_model,
+                    user_prompt, max_new_tokens, top_p, temperature, cache_model,use_global_model,
                     extra_options=None):
-
+        global global_model
         ret_text = []
         llm_model_path = download_hg_model(llm_model, "LLM")
-        if self.previous_model is None:
+        if use_global_model:
+            if global_model is None:
+                model = load_models(llm_model_path, dtype, vlm_lora, device)
+                global_model = model
+            else:
+                model = global_model
+        elif self.previous_model is None:
             model = load_models(llm_model_path, dtype, vlm_lora, device)
         else:
             model = self.previous_model
@@ -517,7 +526,13 @@ class LS_JoyCaption2:
             log(f"{self.NODE_NAME}: caption={caption[0]}")
             ret_text.append(caption[0])
 
-        if cache_model:
+        if use_global_model:
+            if not cache_model:
+                del model
+                del global_model
+                global_model = None
+                clear_memory()
+        elif cache_model:
             self.previous_model = model
         else:
             self.previous_model = None
